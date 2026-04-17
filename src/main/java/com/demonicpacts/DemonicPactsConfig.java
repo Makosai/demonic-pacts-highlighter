@@ -69,6 +69,18 @@ public interface DemonicPactsConfig extends Config
     }
 
     @ConfigItem(
+        keyName = "showLoginHint",
+        name = "Show Login Hint",
+        description = "Show a one-time chat reminder on login to open the Leagues task menu for autocomplete",
+        section = completionSection,
+        position = 3
+    )
+    default boolean showLoginHint()
+    {
+        return true;
+    }
+
+    @ConfigItem(
         keyName = "highlightNpcs",
         name = "Highlight NPCs",
         description = "Highlight NPCs that are part of a league task",
@@ -151,6 +163,18 @@ public interface DemonicPactsConfig extends Config
     default int npcBorderWidth()
     {
         return 2;
+    }
+
+    @ConfigItem(
+        keyName = "maxHighlightedObjects",
+        name = "Max Highlighted Objects",
+        description = "Limit world-object highlights to the closest N objects (trees, rocks, etc.) to reduce lag. Set to 0 to highlight all.",
+        section = highlightSection,
+        position = 6
+    )
+    default int maxHighlightedObjects()
+    {
+        return 10;
     }
 
     @ConfigItem(

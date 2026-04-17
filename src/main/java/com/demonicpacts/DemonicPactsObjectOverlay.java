@@ -3,9 +3,11 @@ package com.demonicpacts;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.ObjectComposition;
+import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.Scene;
 import net.runelite.api.Tile;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -13,6 +15,8 @@ import net.runelite.client.ui.overlay.OverlayUtil;
 
 import javax.inject.Inject;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class DemonicPactsObjectOverlay extends Overlay
@@ -32,6 +36,21 @@ public class DemonicPactsObjectOverlay extends Overlay
         setPriority(PRIORITY_MED);
     }
 
+    /** A candidate object to highlight, with its distance to the player. */
+    private static final class Candidate
+    {
+        final GameObject gameObject;
+        final List<DemonicPactsTask> tasks;
+        final int distSq;
+
+        Candidate(GameObject gameObject, List<DemonicPactsTask> tasks, int distSq)
+        {
+            this.gameObject = gameObject;
+            this.tasks = tasks;
+            this.distSq = distSq;
+        }
+    }
+
     @Override
     public Dimension render(Graphics2D graphics)
     {
@@ -40,9 +59,22 @@ public class DemonicPactsObjectOverlay extends Overlay
             return null;
         }
 
+        Player me = client.getLocalPlayer();
+        if (me == null)
+        {
+            return null;
+        }
+        LocalPoint myLp = me.getLocalLocation();
+        if (myLp == null)
+        {
+            return null;
+        }
+
         Scene scene = client.getScene();
         Tile[][][] tiles = scene.getTiles();
         int z = client.getPlane();
+
+        List<Candidate> candidates = new ArrayList<>();
 
         for (int x = 0; x < tiles[z].length; x++)
         {
@@ -73,7 +105,6 @@ public class DemonicPactsObjectOverlay extends Overlay
                         continue;
                     }
 
-                    // Filter completed
                     if (config.hideCompleted())
                     {
                         tasks = plugin.getCompletedTaskManager().filterIncomplete(tasks);
@@ -83,41 +114,104 @@ public class DemonicPactsObjectOverlay extends Overlay
                         }
                     }
 
-                    DemonicPactsTask highestTask = getHighestDifficultyTask(tasks);
-                    Color color = config.useDifficultyColors()
-                        ? highestTask.getDifficulty().getColor()
-                        : config.defaultHighlightColor();
-
-                    // Draw hull around the object
-                    Shape hull = gameObject.getConvexHull();
-                    if (hull != null)
+                    LocalPoint lp = gameObject.getLocalLocation();
+                    if (lp == null)
                     {
-                        Color fillColor = new Color(color.getRed(), color.getGreen(), color.getBlue(), 30);
-                        graphics.setColor(fillColor);
-                        graphics.fill(hull);
-
-                        graphics.setColor(color);
-                        graphics.setStroke(new BasicStroke(config.npcBorderWidth()));
-                        graphics.draw(hull);
+                        continue;
                     }
+                    int dx = lp.getX() - myLp.getX();
+                    int dy = lp.getY() - myLp.getY();
+                    int distSq = dx * dx + dy * dy;
 
-                    // Label above object
-                    String label = "\u26CF " + highestTask.getDifficulty().name();
-                    if (tasks.size() > 1)
-                    {
-                        label += " (+" + (tasks.size() - 1) + ")";
-                    }
-
-                    Point textLoc = gameObject.getCanvasTextLocation(graphics, label, 80);
-                    if (textLoc != null)
-                    {
-                        OverlayUtil.renderTextLocation(graphics, textLoc, label, color);
-                    }
+                    candidates.add(new Candidate(gameObject, tasks, distSq));
                 }
             }
         }
 
+        // Sort nearest-first and cap to the configured max
+        candidates.sort(Comparator.comparingInt(c -> c.distSq));
+        int max = config.maxHighlightedObjects();
+        int limit = (max > 0 && candidates.size() > max) ? max : candidates.size();
+
+        for (int i = 0; i < limit; i++)
+        {
+            Candidate c = candidates.get(i);
+            DemonicPactsTask highestTask = getHighestDifficultyTask(c.tasks);
+            Color color = config.useDifficultyColors()
+                ? highestTask.getDifficulty().getColor()
+                : config.defaultHighlightColor();
+
+            Shape hull = c.gameObject.getConvexHull();
+            if (hull != null)
+            {
+                Color fillColor = new Color(color.getRed(), color.getGreen(), color.getBlue(), 30);
+                graphics.setColor(fillColor);
+                graphics.fill(hull);
+
+                graphics.setColor(color);
+                graphics.setStroke(new BasicStroke(config.npcBorderWidth()));
+                graphics.draw(hull);
+            }
+
+            String icon = iconForTask(highestTask);
+            String label = icon + " " + highestTask.getDifficulty().name();
+            if (c.tasks.size() > 1)
+            {
+                label += " (+" + (c.tasks.size() - 1) + ")";
+            }
+
+            Point textLoc = c.gameObject.getCanvasTextLocation(graphics, label, 80);
+            if (textLoc != null)
+            {
+                OverlayUtil.renderTextLocation(graphics, textLoc, label, color);
+            }
+        }
+
         return null;
+    }
+
+    /**
+     * Picks a label glyph based on the task type so trees show an axe,
+     * rocks show a pickaxe, fishing spots show a rod, etc.
+     */
+    private String iconForTask(DemonicPactsTask task)
+    {
+        if (task == null || task.getType() == null)
+        {
+            return "\u2605"; // star fallback
+        }
+        switch (task.getType())
+        {
+            case CHOP_ITEM:
+                return "\uD83E\uDE93"; // axe
+            case MINE_ITEM:
+                return "\u26CF";       // pickaxe
+            case BURN_ITEM:
+                return "\uD83D\uDD25"; // fire
+            case CATCH_ITEM:
+                return "\uD83C\uDFA3"; // fishing rod
+            case COOK_ITEM:
+                return "\uD83C\uDF73"; // cooking pan
+            case DEFEAT_NPC:
+                return "\u2694";       // crossed swords
+            case CLEAN_ITEM:
+                return "\uD83C\uDF3F"; // herb
+            case CRAFT_ITEM:
+                return "\u2692";       // hammer and pick
+            case EQUIP_ITEM:
+                return "\uD83D\uDEE1"; // shield
+            case SPELL:
+                return "\u2728";       // sparkles
+            case PRAYER:
+                return "\uD83D\uDD4A"; // dove
+            case SKILL_LEVEL:
+                return "\u2B50";       // star
+            case ACTIVITY:
+                return "\uD83C\uDFC6"; // trophy
+            case MISC:
+            default:
+                return "\u2605";       // star
+        }
     }
 
     private String getObjectName(GameObject gameObject)
@@ -130,7 +224,6 @@ public class DemonicPactsObjectOverlay extends Overlay
                 return null;
             }
 
-            // Handle transformable objects (like depleted rocks)
             if (comp.getImpostorIds() != null)
             {
                 ObjectComposition transformed = comp.getImpostor();

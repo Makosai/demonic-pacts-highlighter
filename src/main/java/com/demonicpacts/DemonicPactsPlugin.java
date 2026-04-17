@@ -6,14 +6,10 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.GameState;
-import net.runelite.api.MenuAction;
-import net.runelite.api.MenuEntry;
-import net.runelite.api.NPC;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
-import net.runelite.api.events.MenuEntryAdded;
-import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
@@ -24,7 +20,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
-import java.util.List;
+import java.awt.Color;
 
 @Slf4j
 @PluginDescriptor(
@@ -34,9 +30,6 @@ import java.util.List;
 )
 public class DemonicPactsPlugin extends Plugin
 {
-    private static final String MARK_COMPLETE = "Mark Task Complete";
-    private static final String MARK_INCOMPLETE = "Unmark Task Complete";
-
     @Inject
     private Client client;
 
@@ -77,6 +70,9 @@ public class DemonicPactsPlugin extends Plugin
     @Inject
     private LeagueTaskCompletionTracker taskTracker;
 
+    // Tracks whether we've shown the autocomplete hint this session
+    private boolean shownLoginHint = false;
+
     @Override
     protected void startUp() throws Exception
     {
@@ -93,6 +89,8 @@ public class DemonicPactsPlugin extends Plugin
         if (client.getGameState() == GameState.LOGGED_IN)
         {
             completedTaskManager.loadForCurrentProfile();
+            // If the plugin was enabled while already logged in, hint now (next tick)
+            clientThread.invokeLater(this::showLoginHintIfNeeded);
         }
     }
 
@@ -107,6 +105,7 @@ public class DemonicPactsPlugin extends Plugin
         eventBus.unregister(taskTracker);
         taskTracker.clear();
         completedTaskManager.onLogout();
+        shownLoginHint = false;
         log.debug("Demonic Pacts Task Highlighter stopped");
     }
 
@@ -122,17 +121,38 @@ public class DemonicPactsPlugin extends Plugin
         if (event.getGameState() == GameState.LOGGED_IN)
         {
             completedTaskManager.loadForCurrentProfile();
+            clientThread.invokeLater(this::showLoginHintIfNeeded);
         }
         else if (event.getGameState() == GameState.LOGIN_SCREEN)
         {
             taskTracker.clear();
             completedTaskManager.onLogout();
+            shownLoginHint = false;
         }
     }
 
     /**
+     * Shows a chat message once per session reminding the player to open the
+     * Leagues task log so the plugin can sync completed tasks via widget 657.
+     */
+    private void showLoginHintIfNeeded()
+    {
+        if (shownLoginHint || !config.showLoginHint() || client.getGameState() != GameState.LOGGED_IN)
+        {
+            return;
+        }
+        shownLoginHint = true;
+
+        String message = new ChatMessageBuilder()
+            .append(Color.MAGENTA, "[Demonic Pacts] ")
+            .append(Color.WHITE, "Open the Leagues task menu so completed tasks sync automatically.")
+            .build();
+
+        client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", message, null);
+    }
+
+    /**
      * Every game tick, sync widget tracker completions into CompletedTaskManager.
-     * Also handles chat-based detection via NOTIFICATION_MAIN.
      */
     @Subscribe
     public void onGameTick(net.runelite.api.events.GameTick event)
@@ -210,62 +230,5 @@ public class DemonicPactsPlugin extends Plugin
                 }
             }
         }
-    }
-
-    /**
-     * Add right-click menu entries on NPCs/items that are task targets.
-     */
-    @Subscribe
-    public void onMenuEntryAdded(MenuEntryAdded event)
-    {
-        String target = Text.removeTags(event.getTarget()).trim();
-        if (target.isEmpty())
-        {
-            return;
-        }
-
-        List<DemonicPactsTask> npcTasks = TaskDatabase.findNpcTasks(target);
-        if (!npcTasks.isEmpty())
-        {
-            addTaskMenuEntries(npcTasks, event.getTarget());
-            return;
-        }
-
-        List<DemonicPactsTask> itemTasks = TaskDatabase.findItemTasks(target);
-        if (!itemTasks.isEmpty())
-        {
-            addTaskMenuEntries(itemTasks, event.getTarget());
-            return;
-        }
-
-        List<DemonicPactsTask> objectTasks = TaskDatabase.findObjectTasks(target);
-        if (!objectTasks.isEmpty())
-        {
-            addTaskMenuEntries(objectTasks, event.getTarget());
-        }
-    }
-
-    private void addTaskMenuEntries(List<DemonicPactsTask> tasks, String target)
-    {
-        for (DemonicPactsTask task : tasks)
-        {
-            boolean completed = completedTaskManager.isCompleted(task)
-                || taskTracker.isComplete(task.getName());
-            String option = completed ? MARK_INCOMPLETE : MARK_COMPLETE;
-
-            client.createMenuEntry(-1)
-                .setOption(option)
-                .setTarget(target)
-                .setType(MenuAction.RUNELITE)
-                .onClick(e -> {
-                    completedTaskManager.toggleCompleted(task.getName());
-                });
-        }
-    }
-
-    @Subscribe
-    public void onMenuOptionClicked(MenuOptionClicked event)
-    {
-        // Handled by the onClick lambda above
     }
 }
