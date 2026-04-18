@@ -84,7 +84,7 @@ public class CompletedTaskManager
         if (completedTasks.add(taskName))
         {
             save();
-            log.info("Marked task completed: {}", taskName);
+            log.debug("Marked task completed: {}", taskName);
         }
     }
 
@@ -93,7 +93,7 @@ public class CompletedTaskManager
         if (completedTasks.remove(taskName))
         {
             save();
-            log.info("Marked task incomplete: {}", taskName);
+            log.debug("Marked task incomplete: {}", taskName);
         }
     }
 
@@ -113,7 +113,7 @@ public class CompletedTaskManager
     {
         completedTasks.clear();
         save();
-        log.info("Cleared all completed tasks for current profile");
+        log.debug("Cleared all completed tasks for current profile");
     }
 
     public Set<String> getCompletedTasks()
