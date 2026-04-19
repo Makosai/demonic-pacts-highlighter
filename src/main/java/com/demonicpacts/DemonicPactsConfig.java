@@ -190,6 +190,18 @@ public interface DemonicPactsConfig extends Config
     }
 
     @ConfigItem(
+            keyName = "filterByCurrentRegion",
+            name = "Filter By Current Region",
+            description = "Only highlight tasks that belong to your current physical region (or General tasks).",
+            section = highlightSection,
+            position = 7
+    )
+    default boolean filterByCurrentRegion()
+    {
+        return true;
+    }
+
+    @ConfigItem(
         keyName = "showTooltips",
         name = "Show Tooltips",
         description = "Show task details when hovering over highlighted entities",

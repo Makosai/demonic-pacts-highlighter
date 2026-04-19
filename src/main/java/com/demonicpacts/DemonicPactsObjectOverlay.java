@@ -18,19 +18,22 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DemonicPactsObjectOverlay extends Overlay
 {
     private final Client client;
     private final DemonicPactsConfig config;
     private final DemonicPactsPlugin plugin;
+    private final LeagueAreaManager areaManager;
 
     @Inject
-    DemonicPactsObjectOverlay(Client client, DemonicPactsConfig config, DemonicPactsPlugin plugin)
+    DemonicPactsObjectOverlay(Client client, DemonicPactsConfig config, DemonicPactsPlugin plugin, LeagueAreaManager areaManager)
     {
         this.client = client;
         this.config = config;
         this.plugin = plugin;
+        this.areaManager = areaManager;
         setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_SCENE);
         setPriority(PRIORITY_MED);
@@ -103,6 +106,20 @@ public class DemonicPactsObjectOverlay extends Overlay
                     if (tasks.isEmpty())
                     {
                         continue;
+                    }
+
+                    // Filter out tasks not in the current region
+                    if (config.filterByCurrentRegion())
+                    {
+                        String currentArea = areaManager.getActiveArea();
+                        tasks = tasks.stream()
+                                .filter(t -> t.getArea().equalsIgnoreCase("General") || t.getArea().equalsIgnoreCase(currentArea))
+                                .collect(Collectors.toList());
+
+                        if (tasks.isEmpty())
+                        {
+                            continue;
+                        }
                     }
 
                     if (config.hideCompleted())

@@ -9,6 +9,7 @@ import javax.inject.Inject;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DemonicPactsItemOverlay extends WidgetItemOverlay
 {
@@ -16,14 +17,16 @@ public class DemonicPactsItemOverlay extends WidgetItemOverlay
     private final DemonicPactsConfig config;
     private final ItemManager itemManager;
     private final DemonicPactsPlugin plugin;
+    private final LeagueAreaManager areaManager;
 
     @Inject
-    DemonicPactsItemOverlay(Client client, DemonicPactsConfig config, ItemManager itemManager, DemonicPactsPlugin plugin)
+    DemonicPactsItemOverlay(Client client, DemonicPactsConfig config, ItemManager itemManager, DemonicPactsPlugin plugin, LeagueAreaManager areaManager)
     {
         this.client = client;
         this.config = config;
         this.itemManager = itemManager;
         this.plugin = plugin;
+        this.areaManager = areaManager;
         showOnInventory();
         showOnBank();
         showOnEquipment();
@@ -43,6 +46,20 @@ public class DemonicPactsItemOverlay extends WidgetItemOverlay
         if (tasks.isEmpty())
         {
             return;
+        }
+
+        // Filter out tasks not in the current region
+        if (config.filterByCurrentRegion())
+        {
+            String currentArea = areaManager.getActiveArea();
+            tasks = tasks.stream()
+                    .filter(t -> t.getArea().equalsIgnoreCase("General") || t.getArea().equalsIgnoreCase(currentArea))
+                    .collect(Collectors.toList());
+
+            if (tasks.isEmpty())
+            {
+                return;
+            }
         }
 
         // Filter out completed tasks if enabled

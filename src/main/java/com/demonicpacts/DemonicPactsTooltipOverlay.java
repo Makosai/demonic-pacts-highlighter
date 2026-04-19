@@ -14,6 +14,7 @@ import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 import javax.inject.Inject;
 import java.awt.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DemonicPactsTooltipOverlay extends Overlay
 {
@@ -22,15 +23,17 @@ public class DemonicPactsTooltipOverlay extends Overlay
     private final TooltipManager tooltipManager;
     private final ItemManager itemManager;
     private final DemonicPactsPlugin plugin;
+    private final LeagueAreaManager areaManager;
 
     @Inject
-    DemonicPactsTooltipOverlay(Client client, DemonicPactsConfig config, TooltipManager tooltipManager, ItemManager itemManager, DemonicPactsPlugin plugin)
+    DemonicPactsTooltipOverlay(Client client, DemonicPactsConfig config, TooltipManager tooltipManager, ItemManager itemManager, DemonicPactsPlugin plugin, LeagueAreaManager areaManager)
     {
         this.client = client;
         this.config = config;
         this.tooltipManager = tooltipManager;
         this.itemManager = itemManager;
         this.plugin = plugin;
+        this.areaManager = areaManager;
         setPosition(OverlayPosition.TOOLTIP);
         setLayer(OverlayLayer.ABOVE_WIDGETS);
         setPriority(PRIORITY_HIGHEST);
@@ -189,6 +192,15 @@ public class DemonicPactsTooltipOverlay extends Overlay
 
     private String buildTooltipText(List<DemonicPactsTask> tasks, String entityName)
     {
+        // Filter out tasks not in the current region BEFORE building the string
+        if (config.filterByCurrentRegion())
+        {
+            String currentArea = areaManager.getActiveArea();
+            tasks = tasks.stream()
+                    .filter(t -> t.getArea().equalsIgnoreCase("General") || t.getArea().equalsIgnoreCase(currentArea))
+                    .collect(Collectors.toList());
+        }
+
         CompletedTaskManager ctm = plugin.getCompletedTaskManager();
         StringBuilder sb = new StringBuilder();
         sb.append("<col=ffaa00>\u2694 Demonic Pacts League Task</col>");

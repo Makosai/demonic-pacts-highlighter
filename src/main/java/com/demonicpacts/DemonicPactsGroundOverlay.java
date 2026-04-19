@@ -15,6 +15,7 @@ import net.runelite.client.ui.overlay.OverlayUtil;
 import javax.inject.Inject;
 import java.awt.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DemonicPactsGroundOverlay extends Overlay
 {
@@ -22,14 +23,16 @@ public class DemonicPactsGroundOverlay extends Overlay
     private final DemonicPactsConfig config;
     private final ItemManager itemManager;
     private final DemonicPactsPlugin plugin;
+    private final LeagueAreaManager areaManager;
 
     @Inject
-    DemonicPactsGroundOverlay(Client client, DemonicPactsConfig config, ItemManager itemManager, DemonicPactsPlugin plugin)
+    DemonicPactsGroundOverlay(Client client, DemonicPactsConfig config, ItemManager itemManager, DemonicPactsPlugin plugin, LeagueAreaManager areaManager)
     {
         this.client = client;
         this.config = config;
         this.itemManager = itemManager;
         this.plugin = plugin;
+        this.areaManager = areaManager;
         setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_SCENE);
         setPriority(PRIORITY_MED);
@@ -71,6 +74,15 @@ public class DemonicPactsGroundOverlay extends Overlay
 
                     String itemName = itemManager.getItemComposition(item.getId()).getName();
                     List<DemonicPactsTask> tasks = TaskDatabase.findItemTasks(itemName);
+
+                    // Filter out tasks not in the current region
+                    if (config.filterByCurrentRegion() && !tasks.isEmpty())
+                    {
+                        String currentArea = areaManager.getActiveArea();
+                        tasks = tasks.stream()
+                                .filter(t -> t.getArea().equalsIgnoreCase("General") || t.getArea().equalsIgnoreCase(currentArea))
+                                .collect(Collectors.toList());
+                    }
 
                     // Filter out completed tasks if enabled
                     if (config.hideCompleted() && !tasks.isEmpty())
