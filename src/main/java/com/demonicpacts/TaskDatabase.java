@@ -1237,7 +1237,7 @@ public class TaskDatabase
         equipItem("Equip the Voidwaker", "Equip the Voidwaker.", "Wilderness", TaskDifficulty.ELITE, "Attack 75", "Voidwaker");
         equipItem("Equip Avernic Treads", "Equip Avernic treads.", "General", TaskDifficulty.ELITE, "Defence 80, Magic 80, Ranged 80, Strength 80", "Avernic treads");
 
-        craftItem("Craft a Toxic Blowpipe", "Craft a Toxic Blowpipe.", "General", TaskDifficulty.ELITE, "Fletching 78",
+        craftItem("Craft a Toxic Blowpipe", "Craft a Toxic Blowpipe.", "Tirannwn", TaskDifficulty.ELITE, "Fletching 78",
             "Tanzanite fang", "Chisel");
 
         addTask("Cast Ice Barrage", "Cast the Ice Barrage spell.", "General", TaskDifficulty.ELITE, TaskType.SPELL, "Magic 94", 1);
