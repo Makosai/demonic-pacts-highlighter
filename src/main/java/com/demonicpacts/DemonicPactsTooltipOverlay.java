@@ -65,8 +65,11 @@ public class DemonicPactsTooltipOverlay extends Overlay
             if (!tasks.isEmpty())
             {
                 String text = buildTooltipText(tasks, npc.getName());
-                if (text != null) tooltipManager.add(new Tooltip(text));
-                return null;
+                if (text != null)
+                {
+                    tooltipManager.add(new Tooltip(text));
+                    return null;
+                }
             }
         }
 
@@ -139,7 +142,8 @@ public class DemonicPactsTooltipOverlay extends Overlay
                     List<DemonicPactsTask> tasks = TaskDatabase.findItemTasks(itemName);
                     if (!tasks.isEmpty())
                     {
-                        return buildTooltipText(tasks, itemName);
+                        String text = buildTooltipText(tasks, itemName);
+                        if (text != null) return text;
                     }
                 }
                 catch (Exception ignored) {}
@@ -152,7 +156,8 @@ public class DemonicPactsTooltipOverlay extends Overlay
             List<DemonicPactsTask> tasks = TaskDatabase.findItemTasks(cleanTarget);
             if (!tasks.isEmpty())
             {
-                return buildTooltipText(tasks, cleanTarget);
+                String text = buildTooltipText(tasks, cleanTarget);
+                if (text != null) return text;
             }
         }
 
@@ -160,20 +165,22 @@ public class DemonicPactsTooltipOverlay extends Overlay
         List<DemonicPactsTask> npcTasks = TaskDatabase.findNpcTasks(cleanTarget);
         if (!npcTasks.isEmpty())
         {
-            return buildTooltipText(npcTasks, cleanTarget);
+            String text = buildTooltipText(npcTasks, cleanTarget);
+            if (text != null) return text;
         }
 
         List<DemonicPactsTask> itemTasks = TaskDatabase.findItemTasks(cleanTarget);
         if (!itemTasks.isEmpty())
         {
-            return buildTooltipText(itemTasks, cleanTarget);
+            String text = buildTooltipText(itemTasks, cleanTarget);
+            if (text != null) return text;
         }
 
-        // Try world objects (rocks, trees, patches)
         List<DemonicPactsTask> objectTasks = TaskDatabase.findObjectTasks(cleanTarget);
         if (!objectTasks.isEmpty())
         {
-            return buildTooltipText(objectTasks, cleanTarget);
+            String text = buildTooltipText(objectTasks, cleanTarget);
+            if (text != null) return text;
         }
 
         return null;
@@ -197,31 +204,37 @@ public class DemonicPactsTooltipOverlay extends Overlay
         {
             String currentArea = areaManager.getActiveArea();
             tasks = tasks.stream()
-                    .filter(t -> t.getArea().equalsIgnoreCase("General") || t.getArea().equalsIgnoreCase(currentArea))
-                    .collect(Collectors.toList());
+                .filter(t -> t.getArea().equalsIgnoreCase("General") || t.getArea().equalsIgnoreCase(currentArea))
+                .collect(Collectors.toList());
         }
 
+        // Filter out completed tasks if hideCompleted enabled
         CompletedTaskManager ctm = plugin.getCompletedTaskManager();
+        if (config.hideCompleted() && !config.showCompletedInTooltip())
+        {
+            tasks = tasks.stream()
+                .filter(t -> !ctm.isCompleted(t))
+                .collect(Collectors.toList());
+        }
+
+        // If all tasks were filtered out (completed or wrong region), don't draw a tooltip
+        if (tasks.isEmpty())
+        {
+            return null;
+        }
+
         StringBuilder sb = new StringBuilder();
         sb.append("<col=ffaa00>\u2694 Demonic Pacts League Task</col>");
 
-        int shown = 0;
         for (int i = 0; i < tasks.size(); i++)
         {
             DemonicPactsTask task = tasks.get(i);
             boolean completed = ctm.isCompleted(task);
 
-            // Skip completed tasks unless configured to show them
-            if (completed && config.hideCompleted() && !config.showCompletedInTooltip())
-            {
-                continue;
-            }
-
-            if (shown > 0)
+            if (i > 0)
             {
                 sb.append("<br>---");
             }
-            shown++;
 
             String hexColor = String.format("%06x", task.getDifficulty().getColor().getRGB() & 0xFFFFFF);
 
@@ -268,11 +281,6 @@ public class DemonicPactsTooltipOverlay extends Overlay
                 sb.append("<br><col=ffffff>Quantity: </col><col=ffff00>")
                     .append(task.getQuantity()).append("</col>");
             }
-        }
-
-        if (shown == 0)
-        {
-            return null;
         }
 
         return sb.toString();
