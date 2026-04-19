@@ -3,13 +3,17 @@ package com.demonicpacts;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.awt.*;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -35,15 +39,19 @@ public class LeagueTaskCompletionTracker
     @Inject
     private ClientThread clientThread;
 
+    @Inject
+    private DemonicPactsConfig config;
+
     @Subscribe
-    public void onWidgetLoaded(WidgetLoaded event)
+    public void onGameTick(GameTick event)
     {
-        if (event.getGroupId() != TASK_LOG_GROUP_ID)
+        // Continuously scan while the interface is actively open.
+        // This catches tasks that appear when the user scrolls or changes filters.
+        Widget nameCol = client.getWidget(TASK_LOG_GROUP_ID, NAME_COLUMN_CHILD);
+        if (nameCol != null && !nameCol.isHidden())
         {
-            return;
+            syncFromTaskLog();
         }
-        // Give the client a tick to populate the dynamic children
-        clientThread.invokeLater(this::syncFromTaskLog);
     }
 
     private void syncFromTaskLog()
@@ -68,16 +76,34 @@ public class LeagueTaskCompletionTracker
         {
             if (statuses[i].getTextColor() == COLOR_COMPLETE)
             {
-                String rawName = statuses[i].getText();
-                if (rawName != null && completedTaskNames.add(rawName.trim()))
+                String rawName = names[i].getText();
+                if (rawName != null && !rawName.isEmpty())
                 {
-                    newlyFound++;
+                    String cleanName = Text.removeTags(rawName).replace('\u00A0', ' ').trim();
+                    if (completedTaskNames.add(cleanName))
+                    {
+                        newlyFound++;
+                    }
                 }
             }
         }
 
-        log.debug("Task log synced. Total complete: {} (new this pass: {})",
-            completedTaskNames.size(), newlyFound);
+        // Only log if we actually found new tasks this tick to prevent chat spam
+        if (newlyFound > 0)
+        {
+            log.debug("Task log synced. Total complete: {} (new this pass: {})",
+                    completedTaskNames.size(), newlyFound);
+
+            if (config.showSyncMessage())
+            {
+                String message = new ChatMessageBuilder()
+                        .append(Color.MAGENTA, "[Demonic Pacts] ")
+                        .append(Color.WHITE, "Synced " + newlyFound + " new tasks.")
+                        .build();
+
+                client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", message, null);
+            }
+        }
     }
 
     /**

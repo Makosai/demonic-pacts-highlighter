@@ -81,6 +81,18 @@ public interface DemonicPactsConfig extends Config
     }
 
     @ConfigItem(
+            keyName = "showSyncMessage",
+            name = "Show Sync Message",
+            description = "Show a chat message indicating how many new tasks were synced from the task log",
+            section = completionSection,
+            position = 4
+    )
+    default boolean showSyncMessage()
+    {
+        return true;
+    }
+
+    @ConfigItem(
         keyName = "highlightNpcs",
         name = "Highlight NPCs",
         description = "Highlight NPCs that are part of a league task",
